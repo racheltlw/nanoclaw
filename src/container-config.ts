@@ -43,6 +43,14 @@ export interface ContainerConfig {
   maxMessagesPerPrompt?: number;
   model?: string;
   effort?: string;
+  /**
+   * Built-in Agent SDK tools exposed to the agent.
+   * - `'all'` (default) — full allowlist (Bash, Read, Write, Edit, Glob, Grep, etc.)
+   * - `'none'` — only MCP tools, no built-ins. Useful for single-purpose bots
+   *   to shrink the system prompt (saves ~3k tokens of tool defs).
+   * - `string[]` — explicit subset.
+   */
+  builtinTools?: 'all' | 'none' | string[];
 }
 
 /** Build a `ContainerConfig` from a DB row + agent group identity. */
@@ -63,6 +71,7 @@ export function configFromDb(row: ContainerConfigRow, group: AgentGroup): Contai
     maxMessagesPerPrompt: row.max_messages_per_prompt ?? undefined,
     model: row.model ?? undefined,
     effort: row.effort ?? undefined,
+    builtinTools: JSON.parse(row.builtin_tools) as 'all' | 'none' | string[],
   };
 }
 

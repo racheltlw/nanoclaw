@@ -278,6 +278,14 @@ async function processQuery(
   // will kill the container and messages get reset to pending.
   let pollInFlight = false;
   let endedForCommand = false;
+  // Cap consecutive error-result events (e.g. rate-limit retries) per query.
+  // The SDK can emit many result events in a row when each call 429s; each
+  // one consumes input tokens and burns more of the ITPM budget, making
+  // recovery harder. After 2 consecutive errors, end the stream and let the
+  // outer poll-loop write a single "Error: ..." reply to the user.
+  const MAX_CONSECUTIVE_ERRORS = 2;
+  let consecutiveErrors = 0;
+  let abortedForErrors = false;
   const pollHandle = setInterval(() => {
     if (done || pollInFlight || endedForCommand) return;
     pollInFlight = true;
@@ -377,9 +385,26 @@ async function processQuery(
         // (send_message) mid-turn, or the message may not need a response
         // at all — either way the turn is finished.
         markCompleted(initialBatchIds);
+        // Detect rate-limit / API-error result text. The SDK surfaces these
+        // as the text of a normal result event; with no message wrapping we'd
+        // otherwise enter the unwrapped-nudge loop and burn more budget.
+        const isApiError = !!event.text && /API Error|rate.?limit|429/i.test(event.text);
+        if (isApiError) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            log(`Aborting query — ${consecutiveErrors} consecutive API-error results`);
+            abortedForErrors = true;
+            query.abort();
+            break;
+          }
+        } else if (event.text) {
+          consecutiveErrors = 0;
+        }
         if (event.text) {
           const { hasUnwrapped } = dispatchResultText(event.text, routing);
-          if (hasUnwrapped && !unwrappedNudged) {
+          // Don't nudge after an API error — the nudge becomes another
+          // input token charge on an already-overdrawn rate budget.
+          if (hasUnwrapped && !unwrappedNudged && !isApiError) {
             unwrappedNudged = true;
             const destinations = getAllDestinations();
             const names = destinations.map((d) => d.name).join(', ');
@@ -396,6 +421,19 @@ async function processQuery(
   } finally {
     done = true;
     clearInterval(pollHandle);
+  }
+
+  if (abortedForErrors) {
+    writeMessageOut({
+      id: generateId(),
+      kind: 'chat',
+      platform_id: routing.platformId,
+      channel_type: routing.channelType,
+      thread_id: routing.threadId,
+      content: JSON.stringify({
+        text: `Error: hit ${MAX_CONSECUTIVE_ERRORS} consecutive API errors (likely rate-limited) — aborted to avoid burning more token budget. Try again in ~60s.`,
+      }),
+    });
   }
 
   return { continuation: queryContinuation };

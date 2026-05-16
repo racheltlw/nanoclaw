@@ -27,6 +27,7 @@ function presentConfig(row: ContainerConfigRow): Record<string, unknown> {
     packages_npm: JSON.parse(row.packages_npm),
     additional_mounts: JSON.parse(row.additional_mounts),
     cli_scope: row.cli_scope,
+    builtin_tools: JSON.parse(row.builtin_tools),
     updated_at: row.updated_at,
   };
 }
@@ -123,7 +124,7 @@ registerResource({
       access: 'approval',
       description:
         'Update container config scalar fields. Changes are saved but do NOT take effect until you run `ncl groups restart`. ' +
-        'Use --id <group-id> and any of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --cli-scope.',
+        'Use --id <group-id> and any of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --cli-scope, --builtin-tools.',
       handler: async (args) => {
         const id = args.id as string;
         if (!id) throw new Error('--id is required');
@@ -151,13 +152,39 @@ registerResource({
           updates.cli_scope = scope;
         }
 
-        if (Object.keys(updates).length === 0) {
+        // --builtin-tools: 'all' | 'none' | comma-separated list of tool names.
+        // Stored as JSON: '"all"' | '"none"' | '["Read","Write"]'. Use 'none'
+        // for single-purpose bots (saves ~3k tokens of built-in tool schemas
+        // per request).
+        const builtinToolsArg = args['builtin-tools'] ?? args.builtin_tools;
+        let builtinToolsValue: 'all' | 'none' | string[] | undefined;
+        if (builtinToolsArg !== undefined) {
+          const raw = String(builtinToolsArg).trim();
+          if (raw === 'all' || raw === 'none') {
+            builtinToolsValue = raw;
+          } else {
+            builtinToolsValue = raw
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+            if (builtinToolsValue.length === 0) {
+              throw new Error('--builtin-tools must be "all", "none", or a comma-separated list of tool names');
+            }
+          }
+        }
+
+        if (Object.keys(updates).length === 0 && builtinToolsValue === undefined) {
           throw new Error(
-            'Nothing to update — provide at least one of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --cli-scope',
+            'Nothing to update — provide at least one of: --provider, --model, --effort, --image-tag, --assistant-name, --max-messages-per-prompt, --cli-scope, --builtin-tools',
           );
         }
 
-        updateContainerConfigScalars(id, updates);
+        if (Object.keys(updates).length > 0) {
+          updateContainerConfigScalars(id, updates);
+        }
+        if (builtinToolsValue !== undefined) {
+          updateContainerConfigJson(id, 'builtin_tools', builtinToolsValue);
+        }
 
         const updated = getContainerConfig(id)!;
         return presentConfig(updated);

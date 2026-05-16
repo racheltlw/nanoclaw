@@ -5,6 +5,7 @@ node_modules/
 .pnpm-store/
 # Build output
 dist/
+container/mnemon/bin/
 
 # Local data & auth
 store/

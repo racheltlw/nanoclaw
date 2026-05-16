@@ -259,6 +259,7 @@ export class ClaudeProvider implements AgentProvider {
   private additionalDirectories?: string[];
   private model?: string;
   private effort?: string;
+  private builtinTools: 'all' | 'none' | string[];
 
   constructor(options: ProviderOptions = {}) {
     this.assistantName = options.assistantName;
@@ -266,10 +267,17 @@ export class ClaudeProvider implements AgentProvider {
     this.additionalDirectories = options.additionalDirectories;
     this.model = options.model;
     this.effort = options.effort;
+    this.builtinTools = options.builtinTools ?? 'all';
     this.env = {
       ...(options.env ?? {}),
       CLAUDE_CODE_AUTO_COMPACT_WINDOW,
     };
+  }
+
+  private resolveBuiltinTools(): string[] {
+    if (this.builtinTools === 'none') return [];
+    if (this.builtinTools === 'all') return TOOL_ALLOWLIST;
+    return this.builtinTools.filter((t) => TOOL_ALLOWLIST.includes(t));
   }
 
   isSessionInvalid(err: unknown): boolean {
@@ -292,7 +300,7 @@ export class ClaudeProvider implements AgentProvider {
         pathToClaudeCodeExecutable: '/pnpm/claude',
         systemPrompt: instructions ? { type: 'preset' as const, preset: 'claude_code' as const, append: instructions } : undefined,
         allowedTools: [
-          ...TOOL_ALLOWLIST,
+          ...this.resolveBuiltinTools(),
           ...Object.keys(this.mcpServers).map(mcpAllowPattern),
         ],
         disallowedTools: SDK_DISALLOWED_TOOLS,

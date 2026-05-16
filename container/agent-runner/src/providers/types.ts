@@ -35,6 +35,15 @@ export interface ProviderOptions {
    * through to the underlying SDK. If omitted, the SDK default is used.
    */
   effort?: string;
+  /**
+   * Which built-in Agent SDK tools (Bash, Read, Write, etc.) to expose.
+   * - `'all'` (default) — full TOOL_ALLOWLIST.
+   * - `'none'` — only MCP tools, no built-ins.
+   * - `string[]` — explicit subset of the allowlist.
+   * Single-purpose bots (e.g. calendar-only) can set this to `'none'` to
+   * drop ~3k tokens of tool schemas from every request.
+   */
+  builtinTools?: 'all' | 'none' | string[];
 }
 
 export interface QueryInput {
