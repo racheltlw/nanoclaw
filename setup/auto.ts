@@ -36,7 +36,6 @@ import { runSignalChannel } from './channels/signal.js';
 import { runSlackChannel } from './channels/slack.js';
 import { runTeamsChannel } from './channels/teams.js';
 import { runTelegramChannel } from './channels/telegram.js';
-import { runWhatsAppChannel } from './channels/whatsapp.js';
 import { pingCliAgent, type PingResult } from './lib/agent-ping.js';
 import { brightSelect } from './lib/bright-select.js';
 import { offerClaudeOnFailure } from './lib/claude-handoff.js';
@@ -61,7 +60,7 @@ import { isValidTimezone } from '../src/timezone.js';
 const CLI_AGENT_NAME = 'Terminal Agent';
 const RUN_START = Date.now();
 
-type ChannelChoice = 'telegram' | 'discord' | 'whatsapp' | 'signal' | 'teams' | 'slack' | 'imessage' | 'other' | 'skip';
+type ChannelChoice = 'telegram' | 'discord' | 'signal' | 'teams' | 'slack' | 'imessage' | 'other' | 'skip';
 
 async function main(): Promise<void> {
   // Make sure ~/.local/bin is on PATH for every child process we spawn.
@@ -457,8 +456,6 @@ async function main(): Promise<void> {
         result = await runTelegramChannel(displayName!);
       } else if (channelChoice === 'discord') {
         result = await runDiscordChannel(displayName!);
-      } else if (channelChoice === 'whatsapp') {
-        result = await runWhatsAppChannel(displayName!);
       } else if (channelChoice === 'signal') {
         result = await runSignalChannel(displayName!);
       } else if (channelChoice === 'teams') {
@@ -473,7 +470,7 @@ async function main(): Promise<void> {
         p.log.info(
           brandBody(
             wrapForGutter(
-              'No messaging app for now. You can add one later (like Telegram, Discord, WhatsApp, Teams, Slack, or iMessage).',
+              'No messaging app for now. You can add one later (like Telegram, Discord, Teams, Slack, or iMessage).',
               4,
             ),
           ),
@@ -580,8 +577,6 @@ function channelDmLabel(choice: ChannelChoice): string | null {
       return 'Telegram';
     case 'discord':
       return 'Discord DMs';
-    case 'whatsapp':
-      return 'WhatsApp';
     case 'signal':
       return 'Signal';
     case 'teams':
@@ -1098,7 +1093,6 @@ async function askChannelChoice(): Promise<ChannelChoice> {
       options: [
         { value: 'telegram', label: 'Yes, connect Telegram', hint: 'recommended' },
         { value: 'discord', label: 'Yes, connect Discord' },
-        { value: 'whatsapp', label: 'Yes, connect WhatsApp' },
         {
           value: 'signal',
           label: 'Yes, connect Signal',
